@@ -1,101 +1,96 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+import { connect, DefaultGenerics, StreamClient } from "getstream";
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+interface User {
+	name: string;
+	photo: string;
+	handle: string;
+	client?: StreamClient<DefaultGenerics>;
+}
+
+export default function () {
+	const [user1, setUser1] = useState<User>({ name: "Rishi Raj Jain", photo: "https://github.com/rishi-raj-jain.png", handle: "rrj" });
+	const [user2, setUser2] = useState<User>({ name: "Stefan", photo: "https://github.com/DaemonLoki.png", handle: "stf" });
+	const [feedItems, setFeedItems] = useState<any[]>([]);
+	const getStreamClient = (userToken: string) => {
+		if (process.env.NEXT_PUBLIC_STREAM_API_KEY) {
+			return connect(process.env.NEXT_PUBLIC_STREAM_API_KEY, userToken, process.env.NEXT_PUBLIC_STREAM_APP_ID);
+		}
+	};
+	useEffect(() => {
+		const users = [user1, user2];
+		users.forEach((user, index) => {
+			fetch(`/api/token?name=${user.handle}`)
+				.then((res) => res.json())
+				.then((res) => {
+					if (res.userToken) {
+						const userClient = getStreamClient(res.userToken);
+						if (userClient) {
+							if (index === 0) {
+								setUser1({ ...user1, client: userClient });
+							} else {
+								setUser2({ ...user2, client: userClient });
+							}
+							userClient.user(user.handle).getOrCreate({ name: user.name, photo: user.photo });
+						}
+					}
+				});
+		});
+	}, []);
+	return (
+		<div className="flex flex-col gap-y-8 md:flex-row md:gap-x-8 md:gap-y-0">
+			<div className="flex min-w-[300px] flex-col">
+				<span className="mb-3 font-semibold">Message</span>
+				<Input autoComplete="off" id="notification-message" placeholder="Notification Message" />
+				<Button
+					onClick={() => {
+						const message = document.getElementById("notification-message") as HTMLInputElement;
+						if (user1.client) {
+							user1.client
+								.feed("user", user1.handle)
+								.addActivity({
+									actor: `SU:${user1.handle}`,
+									verb: "tweet",
+									tweet: message.value,
+									object: 1,
+								})
+								.then(() => {
+									const user2Client = user2.client?.feed("timeline", user2.handle);
+									if (user2Client) {
+										user2Client.follow("user", user1.handle).then(() => {
+											user2Client.get({ limit: 1 }).then((feedResults) => {
+												setFeedItems((clonedFeedItems: any[]) => [...feedResults.results, ...clonedFeedItems]);
+											});
+										});
+									}
+								});
+						}
+					}}
+					variant="outline"
+					className="mt-3 max-w-max"
+				>
+					Send
+				</Button>
+			</div>
+			<div className="flex min-w-[300px] flex-col">
+				<span className="mb-3 font-semibold">Notifications</span>
+				{feedItems.map((i, _) => (
+					<div key={_} className="flex flex-col border border-l-0 border-r-0 py-3">
+						<img className="size-[40px] rounded-full" height="40px" width="40px" loading="lazy" src={i.actor.data.photo} alt={i.actor.data.name} />
+						<span className="mt-2">
+							<span className="font-semibold">
+								{i.actor.data.name}({i.actor.id})
+							</span>{" "}
+							posted
+						</span>
+						<span className="mt-2 text-gray-600">{i.tweet}</span>
+					</div>
+				))}
+			</div>
+		</div>
+	);
 }
